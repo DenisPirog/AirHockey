@@ -1,6 +1,4 @@
-﻿using System;
-using SFML.System;
-using SFML.Window;
+﻿using SFML.System;
 using SFML.Graphics;
 
 namespace AirHockey
@@ -9,7 +7,6 @@ namespace AirHockey
     {
         public CircleShape mesh = new CircleShape();
         public int score = 0;
-        public bool isBot = false;
 
         public Player(Color meshColor, uint radius, RenderWindow window, int position)
         {
@@ -24,6 +21,14 @@ namespace AirHockey
 
             if(position == 1) mesh.Position = new Vector2f(player1X, playerY);
             if(position == 2) mesh.Position = new Vector2f(player2X, playerY);
+        }
+
+        public void TryMovePlayer(float newPlayerX, Player player, uint height)
+        {
+            if (newPlayerX <= height - player.mesh.Radius * 2 && newPlayerX >= 0)
+            {
+                player.mesh.Position = new Vector2f(player.mesh.Position.X, newPlayerX);
+            }
         }
     }
 }

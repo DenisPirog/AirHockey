@@ -13,22 +13,26 @@ namespace AirHockey
 
         private RenderWindow window = new RenderWindow(new VideoMode(960, 540), "Game window");
 
+        private CircleShape coin;
         private CircleShape ball;
         private RectangleShape centerLine;
-        private CircleShape coin;
+
+        private Drawable[] objectsToDraw;
+
         private bool isCoinSpawned = false;
+
         private Font font = new Font("Data/OpenSans-Bold.ttf");
+        private Text text1;
+        private Text text2;
 
         private Player player1;
         private Player player2;
 
-        private Drawable[] objectsToDraw;
-
         private const int pointCount = 5;
+
         private Random rnd = new Random();
 
-        private double dx = 6;
-        private double dy = 6;
+        private Vector2f delta = new Vector2f(6, 6);
 
         public void Start()
         {
@@ -39,8 +43,8 @@ namespace AirHockey
 
             while (!isEndGame())
             {
-                CalculatePlayers();
-                CalculateBall();
+                TryMovePlayers();
+                MoveBall();
                 TrySpawnCoin();
                 if (isCoinSpawned) CalculateCoin();
                 DrawField();
@@ -52,12 +56,9 @@ namespace AirHockey
             uint lineWidth = width / 100;
             uint lineHeight = height;
 
-            uint lineX = width / 2;
-            uint lineY = 0;
-
             centerLine = new RectangleShape(new Vector2f(lineWidth, lineHeight))
             {
-                Position = new Vector2f(lineX, lineY),
+                Position = new Vector2f(width / 2, 0),
                 FillColor = Color.White
             };
 
@@ -81,7 +82,13 @@ namespace AirHockey
             player1 = new Player(Color.Blue, 30, window, 1);
             player2 = new Player(Color.Red, 30, window, 2);
 
-            objectsToDraw = new Drawable[5] { player1.mesh, player2.mesh, centerLine, ball, coin };
+            text1 = new Text(player1.score.ToString(), font);
+            text2 = new Text(player2.score.ToString(), font);
+
+            text1.Position = new Vector2f(80, 100);
+            text2.Position = new Vector2f(width - 100, 100);
+
+            objectsToDraw = new Drawable[7] { player1.mesh, player2.mesh, centerLine, ball, coin, text1, text2 };
         }
 
         private bool isEndGame()
@@ -104,21 +111,14 @@ namespace AirHockey
         {
             window.Clear(color);
             window.Display();
+            Thread.Sleep(1000);
         }
 
-        private void CalculatePlayers()
+        private void TryMovePlayers()
         {
-            TryMovePlayer(player1.mesh.Position.Y + Input(), player1);
+            player1.TryMovePlayer(player1.mesh.Position.Y + Input(), player1, height);
 
-            TryMovePlayer(ball.Position.Y + 50, player2);       
-        }
-
-        private void TryMovePlayer(float newPlayerX, Player player)
-        {
-            if (newPlayerX <= height - player.mesh.Radius * 2 && newPlayerX >= 0)
-            {
-                player.mesh.Position = new Vector2f(player.mesh.Position.X, newPlayerX);
-            }
+            player2.TryMovePlayer(ball.Position.Y + 50, player2, height);       
         }
 
         private int Input()
@@ -137,45 +137,38 @@ namespace AirHockey
             return 0;
         }
 
-        private void CalculateBall()
+        private void MoveBall()
         {
             double r = ball.Radius;
-            double x = ball.Position.X;
-            double y = ball.Position.Y;
+            Vector2f position = ball.Position;
 
-            dx += 0.02;
-            dy += 0.02;
+            position += delta;
 
-            x += dx;
-            y += dy;
-
-
-            if (y + r > window.Size.Y - ball.Radius || y - r < 0 - ball.Radius)
+            if (position.Y + r > window.Size.Y - ball.Radius || position.Y - r < 0 - ball.Radius)
             {
-                dy = -dy;
+                delta.Y = -delta.Y;
             }
 
-            if (x + r > window.Size.X - ball.Radius)
+            if (position.X + r > window.Size.X - ball.Radius)
             {
-                (x, y) = Goal(player1);
+                position = Goal(player1);
             }
-            else if (x - r < 0 - ball.Radius)
+            else if (position.X - r < 0 - ball.Radius)
             {
-                (x, y) = Goal(player2);
+                position = Goal(player2);
             }
 
-            ball.Position = new Vector2f((float)x, (float)y);
+            ball.Position = position;
 
             if (isColliding(ball, player1.mesh) || isColliding(ball, player2.mesh))
             {
-                dx = -dx;
-                dy = -dy;
+                delta = -delta;
             }          
         }     
 
         private bool isColliding(CircleShape object1, CircleShape object2)
         {
-            double distance = CalculateDistance(object1, object2);
+            double distance = VectorExtensions.DistanceTo(object1.Position, object2.Position);
 
             if (distance < object1.Radius + object2.Radius)
             {
@@ -185,27 +178,15 @@ namespace AirHockey
             return false;
         }    
 
-        private double CalculateDistance(CircleShape object1, CircleShape object2)
+        private Vector2f Goal(Player player)
         {
-            double Dx = object1.Position.X - object2.Position.X;
-            double Dy = object1.Position.Y - object2.Position.Y;
+            delta = -delta;
 
-            double distance = Math.Sqrt(Dx * Dx + Dy * Dy);
-
-            return distance;
-        }
-
-        private (double, double) Goal(Player player)
-        {
-            dx = -dx;
-            dy = -dy;
-
-            double x = width / 2 - 20;
-            double y = height / 2 - 25;
+            Vector2f position = new Vector2f(width / 2 - 20, height / 2 - 25);
 
             player.score += 1;
 
-            return (x, y);
+            return position;
         }
 
         private void TrySpawnCoin()
@@ -218,22 +199,21 @@ namespace AirHockey
 
         private void SpawnCoin()
         {
-            float randomX;
-            float randomY = rnd.Next(0, (int)height - (int)coin.Radius * 2);
+            Vector2f position = new Vector2f(0, rnd.Next(0, (int)height - (int)coin.Radius * 2));
 
             int fieldPart = rnd.Next(1, 3);
 
             if (fieldPart == 1)
             {
-                randomX = player1.mesh.Radius * 2;
+                position.X = player1.mesh.Radius * 2;
             }
             else 
             {
-                randomX = width - player1.mesh.Radius * 4;
+                position.X = width - player1.mesh.Radius * 4;
             }           
 
             isCoinSpawned = true;
-            coin.Position = new Vector2f(randomX, randomY);
+            coin.Position = position;
         }
 
         private void CalculateCoin()
@@ -257,16 +237,8 @@ namespace AirHockey
             Color gray = new Color(107, 107, 107);
             window.Clear(gray);
 
-            
-
-            Text text1 = new Text(player1.score.ToString(), font);
-            Text text2 = new Text(player2.score.ToString(), font);
-
-            text1.Position = new Vector2f(80, 100);
-            text2.Position = new Vector2f(width - 100, 100);
-
-            window.Draw(text1);
-            window.Draw(text2);
+            text1.DisplayedString = player1.score.ToString();
+            text2.DisplayedString = player2.score.ToString();
 
             foreach (Drawable shape in objectsToDraw)
             {
