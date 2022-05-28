@@ -6,33 +6,32 @@ using SFML.Graphics;
 
 namespace AirHockey
 {
-    internal class Game
+    public class Game
     {
         private const uint width = 960;
         private const uint height = 540;
 
+        private const int pointCount = 5;
+
         private RenderWindow window = new RenderWindow(new VideoMode(960, 540), "Game window");
 
         private CircleShape coin;
-        private CircleShape ball;
         private RectangleShape centerLine;
 
         private Drawable[] objectsToDraw;
 
         private bool isCoinSpawned = false;
 
-        private Font font = new Font("Data/OpenSans-Bold.ttf");
+        private readonly Font font = new Font("Data/OpenSans-Bold.ttf");
         private Text text1;
         private Text text2;
 
         private Player player1;
         private Player player2;
 
-        private const int pointCount = 5;
+        private Ball ball;
 
         private Random rnd = new Random();
-
-        private Vector2f delta = new Vector2f(6, 6);
 
         public void Start()
         {
@@ -53,23 +52,10 @@ namespace AirHockey
 
         private void CreateField()
         {
-            uint lineWidth = width / 100;
-            uint lineHeight = height;
-
-            centerLine = new RectangleShape(new Vector2f(lineWidth, lineHeight))
+            centerLine = new RectangleShape(new Vector2f(width / 100, height))
             {
                 Position = new Vector2f(width / 2, 0),
                 FillColor = Color.White
-            };
-
-            Color gray = new Color(58, 58, 58);
-
-            ball = new CircleShape(25)
-            {
-                FillColor = gray,
-                OutlineColor = Color.Black,
-                OutlineThickness = 3,
-                Position = new Vector2f(width / 2 - 20, height / 2 - 25),
             };
 
             coin = new CircleShape(25)
@@ -79,16 +65,27 @@ namespace AirHockey
                 OutlineThickness = 3,
             };
 
-            player1 = new Player(Color.Blue, 30, window, 1);
-            player2 = new Player(Color.Red, 30, window, 2);
+            Color gray = new Color(58, 58, 58);
 
-            text1 = new Text(player1.score.ToString(), font);
-            text2 = new Text(player2.score.ToString(), font);
+            ball = new Ball(gray, new Vector2f(width / 2 - 20, height / 2 - 25));
 
-            text1.Position = new Vector2f(80, 100);
-            text2.Position = new Vector2f(width - 100, 100);
+            Vector2f player1Position = new Vector2f(30 * 2, window.Size.Y / 2 - 30);
+            Vector2f player2Position = new Vector2f(window.Size.X - 30 * 4, window.Size.Y / 2 - 30);
 
-            objectsToDraw = new Drawable[7] { player1.mesh, player2.mesh, centerLine, ball, coin, text1, text2 };
+            player1 = new Player(Color.Blue, 30, player1Position);
+            player2 = new Player(Color.Red, 30, player2Position);
+
+            text1 = new Text(player1.score.ToString(), font)
+            {
+                Position = new Vector2f(80, 100),
+            };
+
+            text2 = new Text(player2.score.ToString(), font)
+            {
+                Position = new Vector2f(width - 100, 100),
+            };
+
+            objectsToDraw = new Drawable[7] { player1, player2, centerLine, ball, coin, text1, text2 };
         }
 
         private bool isEndGame()
@@ -116,9 +113,17 @@ namespace AirHockey
 
         private void TryMovePlayers()
         {
-            player1.TryMovePlayer(player1.mesh.Position.Y + Input(), player1, height);
+            player1.TryMove(player1.Position.Y + Input(), player1, height);
 
-            player2.TryMovePlayer(ball.Position.Y + 50, player2, height);       
+            player2.TryMove(ball.Position.Y + 50, player2, height);       
+        }
+
+        private void MoveBall()
+        {
+            ball.Move(height, player1, player2);
+
+            if (ball.TryGoal(width) == 1) player1.score += 1;
+            else if (ball.TryGoal(width) == 2) player2.score += 1;
         }
 
         private int Input()
@@ -135,59 +140,7 @@ namespace AirHockey
             }
 
             return 0;
-        }
-
-        private void MoveBall()
-        {
-            double r = ball.Radius;
-            Vector2f position = ball.Position;
-
-            position += delta;
-
-            if (position.Y + r > window.Size.Y - ball.Radius || position.Y - r < 0 - ball.Radius)
-            {
-                delta.Y = -delta.Y;
-            }
-
-            if (position.X + r > window.Size.X - ball.Radius)
-            {
-                position = Goal(player1);
-            }
-            else if (position.X - r < 0 - ball.Radius)
-            {
-                position = Goal(player2);
-            }
-
-            ball.Position = position;
-
-            if (isColliding(ball, player1.mesh) || isColliding(ball, player2.mesh))
-            {
-                delta = -delta;
-            }          
-        }     
-
-        private bool isColliding(CircleShape object1, CircleShape object2)
-        {
-            double distance = VectorExtensions.DistanceTo(object1.Position, object2.Position);
-
-            if (distance < object1.Radius + object2.Radius)
-            {
-                return true;
-            }
-
-            return false;
-        }    
-
-        private Vector2f Goal(Player player)
-        {
-            delta = -delta;
-
-            Vector2f position = new Vector2f(width / 2 - 20, height / 2 - 25);
-
-            player.score += 1;
-
-            return position;
-        }
+        }  
 
         private void TrySpawnCoin()
         {
@@ -205,11 +158,11 @@ namespace AirHockey
 
             if (fieldPart == 1)
             {
-                position.X = player1.mesh.Radius * 2;
+                position.X = player1.Radius * 2;
             }
             else 
             {
-                position.X = width - player1.mesh.Radius * 4;
+                position.X = width - player1.Radius * 4;
             }           
 
             isCoinSpawned = true;
@@ -218,12 +171,12 @@ namespace AirHockey
 
         private void CalculateCoin()
         {
-            if (isColliding(coin, player1.mesh))
+            if (VectorExtensions.isColliding(coin, player1))
             {
                 player1.score += 1;
                 isCoinSpawned = false;
             }
-            else if (isColliding(coin, player2.mesh))
+            else if (VectorExtensions.isColliding(coin, player2))
             {
                 player2.score += 1;
                 isCoinSpawned = false;

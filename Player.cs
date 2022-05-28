@@ -3,31 +3,24 @@ using SFML.Graphics;
 
 namespace AirHockey
 {
-    public class Player
+    public class Player : CircleShape
     {
-        public CircleShape mesh = new CircleShape();
         public int score = 0;
 
-        public Player(Color meshColor, uint radius, RenderWindow window, int position)
+        public Player(Color meshColor, uint radius, Vector2f position)
         {
-            mesh.FillColor = meshColor;
-            mesh.Radius = radius;
-            mesh.OutlineColor = Color.Black;
-            mesh.OutlineThickness = 2;
-
-            uint player1X = radius * 2;
-            uint player2X = window.Size.X - radius * 4;
-            uint playerY = window.Size.Y / 2 - radius;
-
-            if(position == 1) mesh.Position = new Vector2f(player1X, playerY);
-            if(position == 2) mesh.Position = new Vector2f(player2X, playerY);
+            FillColor = meshColor;
+            Radius = radius;
+            OutlineColor = Color.Black;
+            OutlineThickness = 2;
+            Position = position;
         }
 
-        public void TryMovePlayer(float newPlayerX, Player player, uint height)
+        public void TryMove(float newPlayerX, Player player, uint height)
         {
-            if (newPlayerX <= height - player.mesh.Radius * 2 && newPlayerX >= 0)
+            if (newPlayerX <= height - player.Radius * 2 && newPlayerX >= 0)
             {
-                player.mesh.Position = new Vector2f(player.mesh.Position.X, newPlayerX);
+                player.Position = new Vector2f(player.Position.X, newPlayerX);
             }
         }
     }
